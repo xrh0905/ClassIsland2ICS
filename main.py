@@ -1,6 +1,7 @@
 import json
 import logging
 import pytz
+import argparse
 from datetime import datetime, timedelta, time
 from icalendar import Calendar, Event
 
@@ -24,36 +25,46 @@ def main():
     # Set up logging
     logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(message)s')
 
-    settings_filename = 'settings.json'
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Process some files.')
+    parser.add_argument('--settings', type=str, help='Path to the settings JSON file')
+    parser.add_argument('--start-time', type=str, help='Single week start time in ISO format')
+     parser.add_argument('--profile', type=str, help='Path to the profile JSON file')
+    args = parser.parse_args()
+
+    if args.settings:
+        settings_filename = args.settings
+    else:
+        settings_filename = 'settings.json'
+
     try:
         settings = read_json_file(settings_filename)
     except Exception as e:
         logging.error(f"Error reading {settings_filename}: {e}")
         return
 
-    # Get SelectedProfile from settings
-    selected_profile = settings.get('SelectedProfile', 'main.json')
+    if args.profile:
+        selected_profile = args.profile
+    else:
+        selected_profile = settings.get('SelectedProfile', 'main.json')
     logging.info(f"Selected profile: {selected_profile}")
 
-    # Read main.json (or the selected profile)
     try:
         data = read_json_file(selected_profile)
     except Exception as e:
         logging.error(f"Error reading {selected_profile}: {e}")
         return
 
-    # Extract SingleWeekStartTime
-    single_week_start_time_str = settings.get('SingleWeekStartTime', '2024-09-01T00:00:00')
+    if args.start_time:
+        single_week_start_time_str = args.start_time
+    else:
+        single_week_start_time_str = settings.get('SingleWeekStartTime', '2024-09-01T00:00:00')
     try:
         single_week_start_time = datetime.fromisoformat(single_week_start_time_str)
     except ValueError as e:
         logging.error(f"Invalid SingleWeekStartTime format in {settings_filename}: {e}")
         return
     logging.info(f"SingleWeekStartTime: {single_week_start_time}")
-
-    # Extract ClassPrepareNotifySeconds (not used in this script but logged)
-    class_prepare_notify_seconds = settings.get('ClassPrepareNotifySeconds', 60)
-    logging.info(f"ClassPrepareNotifySeconds: {class_prepare_notify_seconds}")
 
     # Extract subjects
     subjects = data.get('Subjects', {})
