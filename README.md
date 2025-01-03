@@ -1,6 +1,6 @@
 # ClassIsland2ICS
 
-ClassIsland2ICS is a Python project that reads JSON files containing class schedules and converts them into ICS (iCalendar) files. This allows users to import their class schedules into calendar applications like Google Calendar, Outlook, etc.
+ClassIsland2ICS 是一个 Python 项目，用于读取包含课程表的 JSON 文件并将其转换为 ICS (iCalendar) 文件。这样用户可以将课程表导入到 Google Calendar、Outlook 等日历应用中并同步到手表上。
 
 ## 特性
 
@@ -18,7 +18,7 @@ ClassIsland2ICS is a Python project that reads JSON files containing class sched
 可以使用以下命令安装这些包：
 
 ```sh
-pip install -r requirements.txt
+pip install -r [requirements.txt](http://_vscodecontentref_/0)
 ```
 
 ## 使用方法
@@ -26,9 +26,25 @@ pip install -r requirements.txt
 1. **准备你的 JSON 文件**：确保你的课程表在一个 JSON 文件中。
 2. **运行脚本**：执行 `main.py` 脚本将 JSON 文件转换为 ICS 文件。
 
+如目录下存在settings.json和启用的profile.json
 ```sh
 python main.py
 ```
+
+如目录下存在profile.json
+```sh
+python main.py profile.json
+```
+
+## 可选参数
+`--calendar-start-date`：日历开始日期 (YYYY-MM-DD)。
+`--calendar-end-date`：日历结束日期 (YYYY-MM-DD)。
+`--ignore-start-time`：忽略时间段开始 (HH:MM)。
+`--ignore-end-time`：忽略时间段结束 (HH:MM)。
+`--ignore-class-names`：要忽略的课程名称，逗号分隔。
+`--settings`：设置 JSON 文件的路径。
+`--start-time`：单周开始时间的 ISO 格式。
+`--profile`：课程表 JSON 文件的路径。
 
 ## 许可证
 
