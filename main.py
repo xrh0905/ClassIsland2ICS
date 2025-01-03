@@ -11,7 +11,6 @@ def read_json_file(filename):
         try:
             with open(filename, 'r', encoding=enc) as f:
                 data = f.read()
-                # Try to parse JSON
                 json_data = json.loads(data)
                 logging.info(f"Successfully read and parsed {filename} with encoding {enc}")
                 return json_data
@@ -22,49 +21,104 @@ def read_json_file(filename):
     raise Exception(f"Failed to read and parse {filename} with known encodings.")
 
 def main():
-    # Set up logging
     logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(message)s')
-
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Process some files.')
+    parser = argparse.ArgumentParser(description='Class schedule generator.')
+    parser.add_argument('--calendar-start-date', type=str, help='Calendar start date (YYYY-MM-DD)')
+    parser.add_argument('--calendar-end-date', type=str, help='Calendar end date (YYYY-MM-DD)')
+    parser.add_argument('--ignore-start-time', type=str, help='Ignore timespan start (HH:MM)')
+    parser.add_argument('--ignore-end-time', type=str, help='Ignore timespan end (HH:MM)')
+    parser.add_argument('--ignore-class-names', type=str, help='Comma-separated list of class names to ignore')
+    parser.add_argument('positional_profile', nargs='?', help='Profile JSON filename as a positional argument')
     parser.add_argument('--settings', type=str, help='Path to the settings JSON file')
     parser.add_argument('--start-time', type=str, help='Single week start time in ISO format')
-     parser.add_argument('--profile', type=str, help='Path to the profile JSON file')
+    parser.add_argument('--profile', type=str, help='Path to the profile JSON file')
     args = parser.parse_args()
 
     if args.settings:
         settings_filename = args.settings
     else:
         settings_filename = 'settings.json'
-
     try:
         settings = read_json_file(settings_filename)
     except Exception as e:
         logging.error(f"Error reading {settings_filename}: {e}")
         return
 
-    if args.profile:
-        selected_profile = args.profile
+    # Determine profile file and single_week_start_time
+    if args.positional_profile:
+        selected_profile = args.positional_profile
+        if args.start_time:
+            single_week_start_time_str = args.start_time
+        else:
+            current_year = datetime.now().year
+            single_week_start_time_str = f"{current_year}-09-01T00:00:00"
     else:
-        selected_profile = settings.get('SelectedProfile', 'main.json')
-    logging.info(f"Selected profile: {selected_profile}")
+        if args.profile:
+            selected_profile = args.profile
+        else:
+            selected_profile = settings.get('SelectedProfile', 'main.json')
+        if args.start_time:
+            single_week_start_time_str = args.start_time
+        else:
+            single_week_start_time_str = settings.get('SingleWeekStartTime', '2024-09-01T00:00:00')
+
+    try:
+        single_week_start_time = datetime.fromisoformat(single_week_start_time_str)
+    except ValueError as e:
+        logging.error(f"Invalid SingleWeekStartTime format: {e}")
+        return
+
+    # Default to single_week_start_time for the calendar start if not specified
+    if args.calendar_start_date:
+        try:
+            start_date = datetime.fromisoformat(args.calendar_start_date).date()
+        except ValueError as e:
+            logging.error(f"Invalid calendar-start-date: {e}")
+            return
+    else:
+        start_date = single_week_start_time.date()
+
+    # Default to next year's 06/30 for the calendar end if not specified
+    if args.calendar_end_date:
+        try:
+            end_date = datetime.fromisoformat(args.calendar_end_date).date()
+        except ValueError as e:
+            logging.error(f"Invalid calendar-end-date: {e}")
+            return
+    else:
+        next_year = datetime.now().year + 1
+        end_date = datetime(next_year, 6, 30).date()
+
+    # Default to 19:00 ~ 22:30 if ignore times not specified
+    if args.ignore_start_time and args.ignore_end_time:
+        try:
+            ignore_start_list = args.ignore_start_time.split(':')
+            ignore_end_list = args.ignore_end_time.split(':')
+            ignore_start_time = time(int(ignore_start_list[0]), int(ignore_start_list[1]))
+            ignore_end_time = time(int(ignore_end_list[0]), int(ignore_end_list[1]))
+        except Exception as e:
+            logging.error(f"Error parsing ignore times: {e}")
+            return
+    else:
+        ignore_start_time = time(19, 0)
+        ignore_end_time = time(22, 30)
+
+    # Default to ['眼保健操','课间操','晚训'] if not specified
+    if args.ignore_class_names:
+        ignore_class_names = [n.strip() for n in args.ignore_class_names.split(',')]
+    else:
+        ignore_class_names = ["眼保健操", "课间操", "晚训"]
+
+    logging.info(f"Calendar will cover from {start_date} to {end_date}")
+    logging.info(f"Ignore timespan: {ignore_start_time} to {ignore_end_time}")
+    logging.info(f"Ignore class names: {ignore_class_names}")
+    logging.info(f"SingleWeekStartTime: {single_week_start_time}")
 
     try:
         data = read_json_file(selected_profile)
     except Exception as e:
-        logging.error(f"Error reading {selected_profile}: {e}")
+        logging.error(f"Error reading profile file '{selected_profile}': {e}")
         return
-
-    if args.start_time:
-        single_week_start_time_str = args.start_time
-    else:
-        single_week_start_time_str = settings.get('SingleWeekStartTime', '2024-09-01T00:00:00')
-    try:
-        single_week_start_time = datetime.fromisoformat(single_week_start_time_str)
-    except ValueError as e:
-        logging.error(f"Invalid SingleWeekStartTime format in {settings_filename}: {e}")
-        return
-    logging.info(f"SingleWeekStartTime: {single_week_start_time}")
 
     # Extract subjects
     subjects = data.get('Subjects', {})
@@ -114,11 +168,6 @@ def main():
     cal.add('version', '2.0')
     tz = pytz.timezone('Asia/Shanghai')
 
-    # Define start and end dates
-    start_date = single_week_start_time.date()
-    end_date = datetime(2025, 6, 30).date()  # Adjusted to match China's academic calendar
-    logging.info(f"Calendar will cover from {start_date} to {end_date}")
-
     # Map data weekdays to RRULE BYDAY values
     weekday_map = {
         0: 'MO',
@@ -129,13 +178,6 @@ def main():
         5: 'SA',
         6: 'SU',
     }
-
-    # Define timespan to ignore (7:00 PM to 10:30 PM)
-    ignore_start_time = time(19, 0)  # 7:00 PM
-    ignore_end_time = time(22, 30)   # 10:30 PM
-
-    # Define the specific class name to ignore
-    ignore_class_names = ['眼保健操', '课间操', '晚训']
 
     for plan in class_plans_list:
         if not plan.get('IsEnabled'):
